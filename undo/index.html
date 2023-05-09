@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>紫禁城 (FC) 攻略&#x2F;解析 - undo 関連の不具合</title>
+
+  <link rel="stylesheet" href="https://taotao54321.github.io/ShikinjouResource/main.css">
+</head>
+<body>
+
+
+<header>
+  <a href="https://taotao54321.github.io/ShikinjouResource/">紫禁城 (FC) 攻略&#x2F;解析</a>
+</header>
+
+<p>
+Published on: 2023-05-10
+
+</p>
+
+<h1>undo 関連の不具合</h1>
+
+<p>このゲームは A キーを押すことで着手の undo ができる(最大 5 手まで)。<br />
+しかし、この undo 機能にはいくつかの不具合がある。</p>
+<p>本ページ内の動画では <a href="https://gist.github.com/taotao54321/96c2b1b329613cf67d0282e16ef2d73a">Lua スクリプト</a>を用いて牌や落とし穴を可視化している。</p>
+<h2 id="pai-yi-wai-noobuziekutogafu-yuan-sarenai">牌以外のオブジェクトが復元されない</h2>
+<p>牌が落とし穴の上を通過すると落とし穴は消えるが、undo しても消えたまま:</p>
+<video controls width="256">
+    <source src="pit.mp4" type="video/mp4" />
+    <a href="pit.mp4">Video</a>
+</video>
+<p>つるはしで牌を消す手は直前の手とマージして undo されるが、つるはし自体は復活しない:</p>
+<video controls width="256">
+    <source src="pickaxe.mp4" type="video/mp4" />
+    <a href="pickaxe.mp4">Video</a>
+</video>
+<p>なお、テレポートに関してはこの問題はない。テレポートを行った時点で undo 履歴はクリアされるため:</p>
+<video controls width="256">
+    <source src="teleport.mp4" type="video/mp4" />
+    <a href="teleport.mp4">Video</a>
+</video>
+<h2 id="redo-bagu">redo バグ</h2>
+<p>着手を行った後、外壁にぶつかりながら undo を行うと、何も入力しなくても直前の着手が redo される:</p>
+<video controls width="256">
+    <source src="redo.mp4" type="video/mp4" />
+    <a href="redo.mp4">Video</a>
+</video>
+<p>この redo の間、自機は自由に動ける。<br />
+このとき redo 完了前に「ルール上押せない牌」を押すと、「押せない原因となった牌」が redo される着手と同じ方向に動く。<br />
+この動作は障害物を無視する。また、画面表示が正しく更新されない。</p>
+<p>たとえば、以下では押せない原因の牌は自機の右隣の西(お邪魔牌)であり、redo 手が下方向なので、この西が下へ動く:</p>
+<video controls width="256">
+    <source src="redo-bug-1.mp4" type="video/mp4" />
+    <a href="redo-bug-1.mp4">Video</a>
+</video>
+<p>一方、押せない牌 A がお邪魔牌でなく、かつ 1 歩先に牌 B があるなら、牌 B が押せない原因の牌として扱われる。<br />
+たとえば、以下では押せない原因の牌は自機の 2 歩右の一索であり、redo 手が下方向なので、この一索が下へ動く:</p>
+<video controls width="256">
+    <source src="redo-bug-2.mp4" type="video/mp4" />
+    <a href="redo-bug-2.mp4">Video</a>
+</video>
+<p>このバグにより、同じマスに複数の牌が存在しうる。その場合、牌リスト内でインデックスが最小の牌が優先して処理される。</p>
+<p>ここまでの例では自機に隣接した押せない牌を使って redo バグを発動したが、redo 手が縦方向の場合、1 歩横に歩いてからバグを発動することもできる。<br />
+これは横方向と縦方向で移動にかかる時間が違う(8F 差がある)のが理由。<br />
+たとえば、以下では 1 歩左に歩いてから左の六筒に触れた結果、押せない原因である 2 歩左のお邪魔牌が上へ動いている:</p>
+<video controls width="256">
+    <source src="redo-bug-3.mp4" type="video/mp4" />
+    <a href="redo-bug-3.mp4">Video</a>
+</video>
+<p>これを利用すると、上下の壁際の牌を盤面外へ押し出すこともできる。<br />
+たとえば、以下では左上隅のゴール扉が上へ動き、盤面外へ消えている:</p>
+<video controls width="256">
+    <source src="redo-bug-4.mp4" type="video/mp4" />
+    <a href="redo-bug-4.mp4">Video</a>
+</video>
+<p>盤面外へ消えた牌はおそらく盤上に影響することはないと思われる。<br />
+また、これを利用したメモリ破壊手段は今のところ見つかっていない。</p>
+<h2 id="pai-batuhuaobahuro">牌バッファオーバーフロー</h2>
+<p>undo 履歴のエントリは着手により消えた牌たちを記録しているが、この牌バッファは最大 4 個までの牌しか記録できない。<br />
+紫禁城のルールでは 1 手で 5 個以上の牌が同時に消えることはないので、通常はこれで問題ないが、つるはしのある面ではオーバーフローが発生しうる。<br />
+(つるはしによって消えた牌は直前の履歴エントリの牌バッファに追加されるため)</p>
+<p>このバッファオーバーフローが生じた後、さらに 1 手着手してから 2 手 undo すると、undo 処理が壊れて盤面がメチャクチャになる。<br />
+143 面での実行例を示す:</p>
+<video controls width="256">
+    <source src="overflow.mp4" type="video/mp4" />
+    <a href="overflow.mp4">Video</a>
+</video>
+<p>このバグは undo 履歴と牌リストを破壊するが、他のメモリ領域はおそらく破壊されないので、任意コード実行などには繋がらないと思われる。</p>
+
+
+
+</body>
+</html>
