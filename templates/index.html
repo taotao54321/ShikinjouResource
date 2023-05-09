@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}{{ config.title }}{% endblock %}
+
+{% block content %}
+{%
+set PAGE_NAMES = [
+    "undo"
+]
+%}
+
+<header>{{ config.title }}</header>
+
+<h2>Contents</h2>
+
+<ul>
+{% for name in PAGE_NAMES %}
+{% set page = get_page(path=name~"/index.md") %}
+    <li><a href="{{ page.permalink | safe }}">{{ page.title }}</a></li>
+{% endfor %}
+</ul>
+
+<p>この文書は<a href="https://github.com/taotao54321/ShikinjouResource">gitリポジトリ</a>で管理されている。誤りの指摘などは Issue へどうぞ。</p>
+{% endblock %}
